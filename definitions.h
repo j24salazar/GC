@@ -141,8 +141,8 @@ struct object3d{
     point3 min;                         /* coordinates' lower bounds */
     point3 max;                         /* coordinates' bigger bounds */
     struct object3d *next; 
-    elm_matriz *pMptr;             /* next element in the pile of objects */
-    elm_matriz *pSptr;
+    elm_matriz *pMptr;
+    elm_matriz *inv;             /* next element in the pile of objects */
 };
 
 typedef struct object3d object3d;

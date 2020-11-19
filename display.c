@@ -1,4 +1,5 @@
 #include "definitions.h"
+#include "io.h"
 #include <GL/glut.h>
 #include <GL/gl.h>
 #include <GL/glu.h>
@@ -12,6 +13,7 @@ extern GLdouble _ortho_z_min,_ortho_z_max;
 
 extern object3d *_first_object;
 extern object3d *_selected_object;
+extern int camara;
 
 /**
  * @brief Function to draw the axes
@@ -96,15 +98,30 @@ void display(void) {
 
     /* Now we start drawing the object */
     glMatrixMode(GL_MODELVIEW);
+    draw_axes();
+     if ( _selected_object!=0)
+    {
+       if (camara==1)
+       {
+            printf("entro aqui\n");
+            glLoadMatrixd(_selected_object->inv->Matriz);
+       }
+       else
+       {
+           //glLoadIdentity();
+       }
+    } 
+    
     
 
     /*First, we draw the axes*/
-    draw_axes();
+    
 
     /*Now each of the objects in the list*/
 
     //Mientras tengamos objectos restantes los dibujara:
     while (aux_obj != 0) {
+        glPushMatrix();
         
         /* Select the color, depending on whether the current object is the selected one or not */
         
@@ -115,7 +132,10 @@ void display(void) {
         }
 
         /* Draw the object; for each face create a new polygon with the corresponding vertices */
-        glLoadMatrixd(aux_obj->pMptr->Matriz);
+        glMultMatrixd(aux_obj->pMptr->Matriz);
+        glGetDoublev(GL_MODELVIEW_MATRIX, _selected_object->inv->Matriz);
+        printf("mult\n");
+        print_Matrix(_selected_object->inv->Matriz);
 
         //Como dibujara? De eso se encarga OpenGL simplemente.
         for (f = 0; f < aux_obj->num_faces; f++) {
@@ -130,7 +150,9 @@ void display(void) {
             glEnd();
         }
         aux_obj = aux_obj->next;
+        glPopMatrix();
     }
     /*Do the actual drawing*/
+    
     glFlush();
 }
