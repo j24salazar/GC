@@ -17,6 +17,10 @@ GLdouble _ortho_z_min,_ortho_z_max;         /*Variables for the control of the o
 object3d * _first_object= 0;                /*List of objects*/
 object3d * _selected_object = 0;            /*Object currently selected*/
 
+elm_matriz * _first_camara = 0;
+elm_matriz * _selected_camara = 0;
+elm_matriz * _selected_camara_inv = 0;
+
 /** GENERAL INITIALIZATION **/
 void initialization (){
 

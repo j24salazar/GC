@@ -1,6 +1,7 @@
 #include "definitions.h"
 #include "io.h"
 #include <GL/glut.h>
+#include <stdio.h>
 #include <GL/gl.h>
 #include <GL/glu.h>
 
@@ -13,7 +14,10 @@ extern GLdouble _ortho_z_min,_ortho_z_max;
 
 extern object3d *_first_object;
 extern object3d *_selected_object;
-extern int camara;
+extern elm_matriz *_selected_camara;
+extern elm_matriz *_selected_camara_inv;
+extern elm_matriz *_first_camara;
+extern int camara,modo_camara;
 
 /**
  * @brief Function to draw the axes
@@ -64,6 +68,39 @@ void reshape(int width, int height) {
 
 
 //NO MODIFICA NADA DEL MUNDO, solo dibuja
+void cabinacamara(){
+    elm_matriz *auxx,*auxxi;
+    auxx = (elm_matriz *)malloc(sizeof(elm_matriz));
+    auxxi = (elm_matriz *)malloc(sizeof(elm_matriz));
+    double At[3],E[3],Vup[3],z[3],x[3],y[3];
+    glGetDoublev(GL_MODELVIEW_MATRIX,auxx->Matriz);
+    
+
+    for (int i = 0; i < 3;i++){
+        x[i] = _selected_object->pMptr->Matriz[i];
+        y[i] = _selected_object->pMptr->Matriz[4+i];
+        z[i] = _selected_object->pMptr->Matriz[8+i];
+        E[i] = _selected_object->pMptr->Matriz[12+i];
+    }
+    for (int i = 0; i < 3; i++){
+        E[i] = E[i] + z[i]*_selected_object->max.z*0.51+y[i]*_selected_object->max.y*0.77;
+        x[i] = -x[i];
+        z[i] = -z[i];
+        
+    }
+    for (int i = 0; i < 3;i++){
+        auxx->Matriz[i] = x[i];
+        auxx->Matriz[4+i] = y[i];
+        auxx->Matriz[8+i] = z[i];
+        auxx->Matriz[12+i] = E[i];
+    }
+    auxx->Matriz[15] = 1;
+    matrix_inv(auxxi, auxx);
+    glLoadIdentity();
+    glLoadMatrixd(auxxi->Matriz);
+    glGetDoublev(GL_MODELVIEW_MATRIX,auxx->Matriz);
+
+}
 
 void display(void) {
     GLint v_index, v, f;
@@ -79,36 +116,41 @@ void display(void) {
 
     //Establece una matriz de proyeccion que determina que lo que este dentro del volumen de vision lo mandara a pantalla.
 
-    /*When the window is wider than our original projection plane we extend the plane in the X axis*/
-    if ((_ortho_x_max - _ortho_x_min) / (_ortho_y_max - _ortho_y_min) < _window_ratio) {
-        /* New width */
-        GLdouble wd = (_ortho_y_max - _ortho_y_min) * _window_ratio;
-        /* Midpoint in the X axis */
+    /*When the window is wider than our original projection plane we extend the plane in the X axis
+      if ((_ortho_x_max - _ortho_x_min) / (_ortho_y_max - _ortho_y_min) < _window_ratio) {
+        /* New widt
+         GLdouble wd = (_ortho_y_max - _ortho_y_min) * _window_ratio;
+        /* Midpoint in the X axis 
         GLdouble midpt = (_ortho_x_min + _ortho_x_max) / 2;
-        /*Definition of the projection*/
+        /*Definition of the projection
         glOrtho(midpt - (wd / 2), midpt + (wd / 2), _ortho_y_min, _ortho_y_max, _ortho_z_min, _ortho_z_max);
-    } else {/* In the opposite situation we extend the Y axis */
-        /* New height */
+    } else {/* In the opposite situation we extend the Y axis 
+        /* New height 
         GLdouble he = (_ortho_x_max - _ortho_x_min) / _window_ratio;
-        /* Midpoint in the Y axis */
+        /* Midpoint in the Y axis 
         GLdouble midpt = (_ortho_y_min + _ortho_y_max) / 2;
-        /*Definition of the projection*/
+        /*Definition of the projection
         glOrtho(_ortho_x_min, _ortho_x_max, midpt - (he / 2), midpt + (he / 2), _ortho_z_min, _ortho_z_max);
     }
-
+    */
+    glFrustum(-0.1,0.1,-0.1,0.1,0.1,1000.0);
     /* Now we start drawing the object */
     glMatrixMode(GL_MODELVIEW);
     draw_axes();
      if ( _selected_object!=0)
     {
-       if (camara==1)
+       if (modo_camara==0)//centrado en el objeto
        {
             printf("entro aqui\n");
             glLoadMatrixd(_selected_object->inv->Matriz);
        }
-       else
+       else if(modo_camara==2)
        {
-           //glLoadIdentity();
+            cabinacamara();
+       }
+       else//camara
+       {
+           glLoadMatrixd(_selected_camara_inv->Matriz);
        }
     } 
     
@@ -133,9 +175,7 @@ void display(void) {
 
         /* Draw the object; for each face create a new polygon with the corresponding vertices */
         glMultMatrixd(aux_obj->pMptr->Matriz);
-        glGetDoublev(GL_MODELVIEW_MATRIX, _selected_object->inv->Matriz);
-        printf("mult\n");
-        print_Matrix(_selected_object->inv->Matriz);
+     
 
         //Como dibujara? De eso se encarga OpenGL simplemente.
         for (f = 0; f < aux_obj->num_faces; f++) {

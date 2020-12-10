@@ -2,6 +2,7 @@
 #include "load_obj.h"
 #include <GL/glut.h>
 #include <stdio.h>
+#include <math.h>
 
 extern object3d * _first_object;
 extern object3d * _selected_object;
@@ -9,7 +10,10 @@ extern object3d * _selected_object;
 extern GLdouble _ortho_x_min,_ortho_x_max;
 extern GLdouble _ortho_y_min,_ortho_y_max;
 extern GLdouble _ortho_z_min,_ortho_z_max;
-elm_matriz *auxi;
+extern elm_matriz *_first_camara;
+extern elm_matriz *_selected_camara;
+extern elm_matriz *_selected_camara_inv;
+elm_matriz *auxi,*aux_cam,*aux_cam_inv;
 int ToRoE,LoG,camara,modo_camara;
 
 
@@ -78,6 +82,7 @@ void matrix_inv(elm_matriz *a,elm_matriz *b) // a->Matriz[16] = Inverse(b16])
 {
     GLdouble x,y,z;
     // transpose of rotation matrix
+    
     a->Matriz[ 0]=b->Matriz[ 0];
     a->Matriz[ 5]=b->Matriz[ 5];
     a->Matriz[10]=b->Matriz[10];
@@ -96,10 +101,89 @@ void matrix_inv(elm_matriz *a,elm_matriz *b) // a->Matriz[16] = Inverse(b16])
     a->Matriz[12]=-x;
     a->Matriz[13]=-y;
     a->Matriz[14]=-z;
-    print_Matrix(b->Matriz);
-    printf("la inversa:\n\n");
-    print_Matrix(a->Matriz);
+
+
 }
+void modo_analisis(int Tecla){
+    int i;
+    double At[3],X[3],Y[3];
+    
+    for(i=0; i<3; i++)
+	{
+		At[i] = _selected_object->pMptr->Matriz[i+12];
+		X[i] = _selected_camara->Matriz[i];
+		Y[i] = _selected_camara->Matriz[i+4];
+	}
+
+    
+    glLoadIdentity();
+    glTranslated(At[0],At[1],At[2]);
+     switch (Tecla) {
+        case GLUT_KEY_UP :
+        glRotated(-11, X[0],X[1],X[2]);
+        break;
+        case GLUT_KEY_DOWN :
+        glRotated(11, X[0],X[1],X[2]);  
+        break;
+        case GLUT_KEY_LEFT :
+        glRotated(-10, Y[0],Y[1],Y[2]);     
+        break;
+        case GLUT_KEY_RIGHT :
+        glRotated(10, Y[0],Y[1],Y[2]);          
+        break;
+        case GLUT_KEY_PAGE_DOWN:
+        glRotated(-11, 0,0,1);      
+        break;
+        case GLUT_KEY_PAGE_UP:
+        glRotated(11,0,0,1);     
+        break;
+        }
+    glTranslated(-At[0],-At[1],-At[2]);
+    glMultMatrixd(_selected_camara->Matriz);
+    glGetDoublev(GL_MODELVIEW_MATRIX,_selected_camara->Matriz);
+    matrix_inv(_selected_camara_inv,_selected_camara);    
+    glutPostRedisplay();
+
+
+}
+
+void matriz_cambio_refer(){
+    double At[3],E[3],Vup[3],z[3],x[3],y[3],mZc,mX;
+    int i;
+    
+    for (i=0; i < 3; i++)
+    { 
+        Vup[i] = _selected_camara->Matriz[4+i];
+        At[i] = _selected_object->pMptr->Matriz[12+i];
+        E[i] = _selected_camara->Matriz[12+i];
+        
+    }
+    mZc = sqrt(pow(E[0]-At[0],2.0)+pow(E[1]-At[1],2.0)+pow(E[2]-At[2],2.0));
+    z[1] = (E[1]-At[1])/(mZc);
+    z[2] = (E[2]-At[2])/(mZc);
+    z[3] = (E[3]-At[3])/(mZc);
+
+    mX = sqrt(pow((Vup[1]*z[2])-(Vup[2]*z[1]),2.0) + pow(Vup[0]*z[2]-Vup[2]*z[0],2.0) + pow(Vup[0]*z[1]-Vup[1]*z[0],2.0));
+    x[0] = (Vup[1]*z[2])-(Vup[2]*z[1])/mX;
+    x[1] = -((Vup[0]*z[2])-(Vup[2]*z[0]))/mX;
+    x[2] = (Vup[0]*z[1])-(Vup[1]*z[0])/mX;
+
+    y[0] = (x[2]*z[1])-(x[1]*z[2]);
+    y[1] = (x[0]*z[2])-(x[2]*z[0]);
+    y[2] = (x[1]*z[0])-(x[0]*z[1]);
+    
+    for (int i = 0; i < 3;i++){
+        _selected_camara->Matriz[i] = x[i];
+        _selected_camara->Matriz[4+i] = y[i];
+        _selected_camara->Matriz[8+i] = z[i];
+        _selected_camara->Matriz[12+i] = E[i];
+    }
+
+    matrix_inv(_selected_camara_inv,_selected_camara);
+    
+
+}
+
 /**
  * @brief Callback function to control the basic keys
  * @param key Key that has been pressed
@@ -108,7 +192,27 @@ void matrix_inv(elm_matriz *a,elm_matriz *b) // a->Matriz[16] = Inverse(b16])
  */
 
 //Meter codigo y corregir 2
+void nueva_cam(){
+    int i;
+    aux_cam_inv = (elm_matriz *)malloc(sizeof(elm_matriz));
+    aux_cam = (elm_matriz *)malloc(sizeof(elm_matriz));
 
+
+    for (i = 1; i < 15; i++)aux_cam->Matriz[i] = 0;
+    aux_cam->Matriz[0] = 1;
+    aux_cam->Matriz[5] = 1;
+    aux_cam->Matriz[10] = 1;
+    aux_cam->Matriz[14] = 5;
+    aux_cam->Matriz[15] = 1;
+
+    aux_cam->mptr=0;
+   
+    aux_cam->mptr = _first_camara;
+    _first_camara = aux_cam;   
+    _selected_camara = _first_camara;
+    matrix_inv(aux_cam_inv,_selected_camara);
+    _selected_camara_inv=aux_cam_inv;
+}
 
 //Al principio a cada objeto le asociamos la matriz I, tras realizar una transformacion la matriz asociada al objeto pasara a ser M
 //y asi sucesivamente por cada transformacion que hagamos, todas estas matrices de transformacion las guardaremos en una lista de matrices
@@ -148,19 +252,21 @@ void keyboard(unsigned char key, int x, int y) {
             _first_object = auxiliar_object;
             _selected_object = _first_object;
             mptrr= (elm_matriz*) malloc(sizeof(elm_matriz));
+           
             mptrr->mptr = 0;
-            for (i = 1; i < 15; i++)
-            {
-                mptrr->Matriz[i]=0;
-            }
+            for (i = 1; i < 15; i++)mptrr->Matriz[i]=0;            
+                
                 mptrr->Matriz[0]= 1;
                 mptrr->Matriz[5]= 1;
                 mptrr->Matriz[10]= 1;
                 mptrr->Matriz[15]= 1;
                 
                 
-                _selected_object->pMptr = mptrr;
+              _selected_object->pMptr = mptrr;
                 _selected_object->inv = mptrr;
+                printf("se produce aqui fijo\n");
+               nueva_cam();
+                modo_camara=1;
                 ToRoE=0;
                 LoG= 0;            
             printf("%s\n",KG_MSSG_FILEREAD);
@@ -274,19 +380,12 @@ void keyboard(unsigned char key, int x, int y) {
         }
         
         break;
-    case 'k':
-    case 'K':
-    if(modo_camara==0)modo_camara=1;
-    else modo_camara=0;
-    break;
+
     case 'M':
     case 'm':
         ToRoE = 0;
         break;
-    case 'g':
-    case 'G':
-        if (camara==0)camara=1;
-        else camara=0;
+
     break;
     case 'B':
     case 'b':
@@ -298,11 +397,60 @@ void keyboard(unsigned char key, int x, int y) {
     break;
     case 'L':
     case 'l':
-        LoG = 0;
+        if(modo_camara==0)LoG=0;
+        else{ 
+        if (camara==0||camara==1)camara=2;
+        else camara=0;
+        }
     break;
-    case 'W':
-    case 'w':
-        LoG = 1;
+    case 'k':
+    case 'K':
+    if(modo_camara==0||modo_camara==2){
+        printf("activo modo camara\n");
+        modo_camara=1;}
+    else{
+        printf("desactivando modo camara pasando a modo objeto\n");
+     modo_camara=0;
+    }
+    break;
+    case 'c':
+           
+        //TODO: CAMBIAR A QUE SEA LA INVERSA SIEMPRE DE CAMARA
+        if (_first_camara != 0)
+        { 
+            printf("Cambio de camara\n");
+            _selected_camara = _selected_camara->mptr;
+            if (_selected_camara == 0)
+                _selected_camara = _first_camara;
+            matrix_inv(_selected_camara_inv,_selected_camara);
+        }
+        break;
+    case'C':
+    if(modo_camara==0||modo_camara==1){
+        printf("pasando a camara del objeto\n");
+        modo_camara=2;
+    }
+    else
+    {
+        printf("pasando a modo camara analisis o camara libre\n");
+        modo_camara=1;
+    }
+    
+    break;   
+    case 'g':
+    case 'G':
+        if(modo_camara==0)LoG=1;
+        else{ 
+        if (camara==0||camara==2){
+            camara=1;
+            matriz_cambio_refer();
+        }
+        else camara=0;
+        }
+        break;
+    case 'n':
+    printf("nueva camara\n");
+    nueva_cam();
     break;
     default:
         /*In the default case we just print the code of the key. This is usefull to define new cases*/
@@ -324,39 +472,19 @@ void guardar()//esta funcion guarda la matriz en mptr
     _selected_object->pMptr = guardado;
     guardado->mptr = aux;
 }
-void global(double x, double y)//traslada,rota,escala respecto a los ejes 
-{
-    glLoadMatrixd(_selected_object->pMptr->Matriz);
-    guardar();
-    glLoadIdentity();
-    switch (ToRoE)
-    {
-    case 0:
-        glTranslated(x, y,0);
-        break;
-    case 1:
-        glRotated(10.0,x,y,0);
-        break;
 
-    case 2:
-        glScaled(x, y,1);
-        break;
-    }
-
-        glMultMatrixd(_selected_object->pMptr->Matriz);
-        glGetDoublev(GL_MODELVIEW_MATRIX, _selected_object->pMptr->Matriz);
-        glLoadMatrixd(_selected_object->pMptr->Matriz);
-}
-void modoObj(int Tecla,int camara){//esta funcion sibe para rotar trasladar.. objetos y camaras
+void modoObj(int Tecla,int mcamara){//esta funcion sibe para rotar trasladar.. objetos y camaras
     int x,y,z;
-    if(camara==0)glLoadMatrixd(_selected_object->pMptr->Matriz);
-   //else glLoadMatrixd("camara")
-    guardar();
-    if(LoG==1 && camara==0)glLoadIdentity();
+    printf("estoy en modo camara %d\n",mcamara);
+    if(mcamara==0){glLoadMatrixd(_selected_object->pMptr->Matriz);
+    guardar();}
+    else glLoadMatrixd(_selected_camara->Matriz);
+
+    if(LoG==1 && mcamara==0)glLoadIdentity();
     
     switch (Tecla) {
         case GLUT_KEY_UP :
-        printf("hola\n");
+        
         x=0;y=1;z=0;
         break;
         case GLUT_KEY_DOWN :
@@ -375,6 +503,8 @@ void modoObj(int Tecla,int camara){//esta funcion sibe para rotar trasladar.. ob
         x=0;y=0;z=1;
         break;
         }
+    if (modo_camara==2){
+        x=-x;z=-z;}
     switch (ToRoE)
     {
         case 0: //Translacion
@@ -388,40 +518,55 @@ void modoObj(int Tecla,int camara){//esta funcion sibe para rotar trasladar.. ob
         break;
         
     }
-    if(camara==0){
+    if(mcamara==0){
     if(LoG==1)glMultMatrixd(_selected_object->pMptr->Matriz);
     glGetDoublev(GL_MODELVIEW_MATRIX, _selected_object->pMptr->Matriz);
     glLoadMatrixd(_selected_object->pMptr->Matriz);
     }
-    else{//guardas esta matriz en la camara
+    else{
+    printf("hola acabo de mover la matriz agur\n");   
+    glGetDoublev(GL_MODELVIEW_MATRIX, _selected_camara->Matriz);
+    matrix_inv(_selected_camara_inv,_selected_camara);
     }
 }
 void modoCamara(int Tecla){
+switch (camara)
+{
+case 1:
+    printf("eso es las pololas\n");
+    modo_analisis(Tecla);
+break;
 
+case 2:
+    modoObj(Tecla,1);
+break;
+}
 
 }
 
 void special(int k, int x, int y) {
     if(_first_object != 0){
-    if(k == 114);
+    if(k == 114||k==112);
     else{
    switch (modo_camara)
     {
     case 0:
+    case 2:
         modoObj(k,0);
     break;
     case 1:
         modoCamara(k);
     break;
-    }
+    }    
     }
    }
    glutPostRedisplay();
-    
-    
-    free(_selected_object->inv);   
-   auxi = (elm_matriz *)malloc(sizeof(elm_matriz));
-    matrix_inv(auxi,_selected_object->pMptr);
-    _selected_object->inv=auxi;
 
+}
+
+void calculo_vectores_norm(){
+
+
+
+    
 }
